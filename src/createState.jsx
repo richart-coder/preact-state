@@ -46,7 +46,7 @@ function createState(initialState) {
       };
     }, []);
 
-    return children(state);
+    return children();
   };
   return {
     WithState,
