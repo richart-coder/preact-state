@@ -21,27 +21,27 @@ const eventBus = {
   },
 };
 
-function createState(initialState) {
-  const stateId = Symbol("state");
-  let _state = initialState;
-  const state = {
+function createSignal(initialValue) {
+  const signalId = Symbol("id");
+  let _value = initialValue;
+  const signal = {
     get value() {
-      return _state;
+      return _value;
     },
-    set value(state) {
-      _state = state;
-      eventBus.pub(stateId, state);
+    set value(newValue) {
+      _value = typeof newValue === "function" ? newValue(_value) : newValue;
+      eventBus.pub(signalId, newValue);
     },
   };
 
-  const WithState = ({ children }) => {
-    const [, setState] = useState(initialState);
+  const WithSignal = ({ children }) => {
+    const [, setValue] = useState(initialValue);
     useLayoutEffect(() => {
-      const unSubscribe = eventBus.sub(stateId, setState);
+      const unSubscribe = eventBus.sub(signalId, setValue);
       return () => {
         unSubscribe();
-        if (eventBus.events.get(stateId)?.size === 0) {
-          _state = null;
+        if (eventBus.events.get(signalId)?.size === 0) {
+          _value = null;
         }
       };
     }, []);
@@ -49,9 +49,9 @@ function createState(initialState) {
     return children();
   };
   return {
-    WithState,
-    state,
+    WithSignal,
+    signal,
   };
 }
 
-export default createState;
+export default createSignal;
