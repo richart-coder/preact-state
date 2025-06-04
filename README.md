@@ -1,131 +1,86 @@
-# Preact State
+# Preact Signal
 
-一個輕量級的 Preact 狀態管理解決方案，提供精確的組件更新控制。
+一個輕量級的 Preact 單點響應式狀態解決方案。
 
-## 特點
+## 核心理念
 
-- 🎯 精確的組件更新控制
-- 🚀 輕量級實現
-- 🔄 發布-訂閱模式
-- 🎨 簡潔的 API
-- 💪 與 Preact 完美整合
+**單點 Signal** - 每個 Signal 只能有一個響應點，提供精確的局部更新控制。
 
-## 安裝
+```jsx
+import createSignal from "preact-signal";
 
-```bash
-npm install preact-state
-# 或
-yarn add preact-state
+const { signal, WithSignal } = createSignal(0);
+
+return (
+  <div>
+    <ExpensiveComponent /> {/* 永遠不會重新渲染 */}
+    <WithSignal>{() => <h1>{signal.value}</h1>}</WithSignal>
+    <button onClick={() => signal.value++}>+</button>
+  </div>
+);
 ```
 
 ## 快速開始
 
 ```jsx
-import { createState } from "preact-state";
-
 const Counter = () => {
-  const { state, WithState } = createState(0);
+  const { signal, WithSignal } = createSignal(0);
 
   return (
     <div>
-      <WithState>{(state) => <h1>{state}</h1>}</WithState>
-      <button onClick={() => state.value++}>+1</button>
+      <WithSignal>
+        {() => (
+          <div>
+            <h1>計數: {signal.value}</h1>
+            <p>雙倍: {signal.value * 2}</p>
+          </div>
+        )}
+      </WithSignal>
+      <button onClick={() => signal.value++}>+</button>
+      <button onClick={() => signal.value--}>-</button>
+      <button onClick={() => (signal.value = 0)}>重置</button>
     </div>
   );
 };
 ```
 
-## 核心概念
+## API
 
-### createState
+### createSignal(initialValue)
 
-`createState` 函數創建一個新的狀態實例，返回 `state` 和 `WithState` 組件。
-
-```jsx
-const { state, WithState } = createState(initialValue);
-```
-
-### state
-
-`state` 是一個包含 getter/setter 的物件：
+創建一個單點 Signal 實例。
 
 ```jsx
-// 讀取狀態
-console.log(state.value);
-
-// 更新狀態
-state.value = newValue;
+const { signal, WithSignal } = createSignal(initialValue);
 ```
 
-### WithState
+### signal.value
 
-`WithState` 是一個用於渲染的組件，它會訂閱狀態更新：
+讀取和設置值：
 
 ```jsx
-<WithState>{(state) => <div>{state}</div>}</WithState>
+// 讀取
+const current = signal.value;
+
+// 設置
+signal.value = newValue;
+
+// 函數式更新
+signal.value = (prev) => prev + 1;
 ```
 
-## 進階用法
+### WithSignal
 
-### 多個狀態
+響應式渲染組件（每個 Signal 只能有一個）：
 
 ```jsx
-const Counter = () => {
-  const { state: count, WithState: WithCount } = createState(0);
-  const { state: step, WithState: WithStep } = createState(1);
-
-  return (
-    <div>
-      <WithCount>{(count) => <h1>{count}</h1>}</WithCount>
-      <WithStep>{(step) => <h2>Step: {step}</h2>}</WithStep>
-      <button onClick={() => (count.value += step.value)}>+{step.value}</button>
-    </div>
-  );
-};
+<WithSignal>{() => <div>{signal.value}</div>}</WithSignal>
 ```
 
-### 複雜狀態
+## 特點
 
-```jsx
-const { state, WithState } = createState({
-  count: 0,
-  step: 1,
-});
-
-// 更新部分狀態
-state.value = { ...state.value, count: state.value.count + 1 };
-```
-
-## 與 useState 的對比
-
-| 特性     | createState | useState     |
-| -------- | ----------- | ------------ |
-| 更新粒度 | 組件級別    | 整個組件樹   |
-| 重新渲染 | 精確控制    | 全部重新渲染 |
-| 狀態共享 | 可選        | 需要額外實現 |
-| 使用方式 | 更靈活      | 更簡單       |
-
-## 性能優化
-
-- 只有使用 `WithState` 的組件會收到更新
-- 避免不必要的重新渲染
-- 自動清理未使用的狀態
-
-## 開發
-
-```bash
-# 安裝依賴
-npm install
-
-# 啟動開發服務器
-npm run dev
-
-# 構建
-npm run build
-```
-
-## 相關項目
-
-- [Preact](https://preactjs.com/)
-- [React](https://reactjs.org/)
-- [Preact Signals](https://preactjs.com/guide/v10/signals/) - 更優雅細粒度的狀態管理解決方案
+- 🎯 **單點響應**：一個 Signal 只有一個響應點
+- ⚡ **精確更新**：只有 WithSignal 內部會重新渲染
+- 🏠 **局部作用域**：Signal 與使用邏輯緊密結合
+- 🚀 **零配置**：無需 Provider 或複雜設置
+- 🔄 **自動清理**：組件卸載時自動清理資源
