@@ -35,7 +35,7 @@ function createState(initialState) {
   };
 
   const WithState = ({ children }) => {
-    const [state, setState] = useState(initialState);
+    const [, setState] = useState(initialState);
     useLayoutEffect(() => {
       const unSubscribe = eventBus.sub(stateId, setState);
       return () => {
