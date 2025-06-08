@@ -1,3 +1,1 @@
-export function App() {
-  return <div>Hello Signals</div>;
-}
+export function App() {}

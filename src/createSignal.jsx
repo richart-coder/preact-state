@@ -34,7 +34,7 @@ function createSignal(initialValue) {
     },
   };
 
-  const WithSignal = ({ children }) => {
+  const Watch = ({ children }) => {
     const [, setValue] = useState(initialValue);
     useLayoutEffect(() => {
       const unSubscribe = eventBus.sub(signalId, setValue);
@@ -50,7 +50,7 @@ function createSignal(initialValue) {
   };
 
   return {
-    WithSignal,
+    Watch,
     signal,
   };
 }
