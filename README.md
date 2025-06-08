@@ -28,17 +28,23 @@ const Counter = () => {
 
   return (
     <div>
-      <watch>
+      <Watch>
         {() => (
           <div>
             <h1>計數: {signal.value}</h1>
             <p>雙倍: {signal.value * 2}</p>
           </div>
         )}
-      </watch>
+      </Watch>
       <button onClick={() => signal.value++}>+</button>
       <button onClick={() => signal.value--}>-</button>
-      <button onClick={() => (signal.value = 0)}>重置</button>
+      <button
+        onClick={() => {
+          signal.value = 0;
+        }}
+      >
+        -
+      </button>
     </div>
   );
 };
