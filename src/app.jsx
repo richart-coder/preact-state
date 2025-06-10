@@ -1,5 +1,7 @@
-function App() {
-  return <div>Hello Signals</div>;
-}
+import TestComponent from "./testComponent";
+
+const App = () => {
+  return <TestComponent />;
+};
 
 export default App;

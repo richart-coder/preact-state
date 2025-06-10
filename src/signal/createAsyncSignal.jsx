@@ -4,6 +4,30 @@ import eventBus from "../utils/eventBus";
 
 const MINUTES = 60 * 1000;
 const cache = new Map();
+const activeQueries = new Map();
+
+const getCacheState = (queryKey, staleTime) => {
+  const cached = cache.get(queryKey);
+  if (!cached) return null;
+
+  const isStale = Date.now() - cached.last_query_at > staleTime;
+  return {
+    data: cached.data,
+    isStale,
+    isFresh: !isStale,
+  };
+};
+
+const updateCache = (queryKey, value) => {
+  cache.set(queryKey, {
+    data: value,
+    last_query_at: Date.now(),
+  });
+};
+
+const cleanupActiveQuery = (queryKey) => {
+  activeQueries.delete(queryKey);
+};
 
 const createAsyncSignal = ({
   queryKey,
@@ -15,30 +39,92 @@ const createAsyncSignal = ({
   const signalId = Symbol("id");
   let abortController = null;
 
+  const updateState = (state) => {
+    eventBus.pub(signalId, state);
+  };
+
+  const handleQuerySuccess = (value) => {
+    cleanupActiveQuery(queryKey);
+
+    updateState({
+      value,
+      loading: false,
+      fetching: false,
+      error: null,
+    });
+
+    updateCache(queryKey, value);
+    onSuccess?.(value);
+  };
+
+  const handleQueryError = (error) => {
+    cleanupActiveQuery(queryKey);
+
+    if (error.name === "AbortError") {
+      return;
+    }
+
+    const cached = cache.get(queryKey);
+    updateState({
+      value: cached?.data || null,
+      loading: false,
+      fetching: false,
+      error,
+    });
+
+    onError?.(error);
+  };
+
+  const subscribeToExistingQuery = (existingQuery) => {
+    existingQuery.then(handleQuerySuccess).catch(handleQueryError);
+  };
+
+  const executeNewQuery = (queryFn) => {
+    abortController?.abort();
+    abortController = new AbortController();
+
+    const queryPromise = queryFn({ signal: abortController.signal });
+    activeQueries.set(queryKey, queryPromise);
+
+    queryPromise.then(handleQuerySuccess).catch(handleQueryError);
+  };
+
   const signal = {
     query: (queryFn) => {
-      const cached = cache.get(queryKey);
-      if (cached) {
-        const isStale = Date.now() - cached.last_query_at > staleTime;
+      if (activeQueries.has(queryKey)) {
+        const cacheState = getCacheState(queryKey, staleTime);
+        updateState({
+          value: cacheState?.data || null,
+          loading: !cacheState,
+          fetching: true,
+          error: null,
+        });
 
-        if (!isStale) {
-          eventBus.pub(signalId, {
-            value: cached.data,
-            loading: false,
-            fetching: false,
-            error: null,
-          });
-          return;
-        }
+        subscribeToExistingQuery(activeQueries.get(queryKey));
+        return;
+      }
 
-        eventBus.pub(signalId, {
-          value: cached.data,
+      const cacheState = getCacheState(queryKey, staleTime);
+
+      if (cacheState?.isFresh) {
+        updateState({
+          value: cacheState.data,
+          loading: false,
+          fetching: false,
+          error: null,
+        });
+        return;
+      }
+
+      if (cacheState) {
+        updateState({
+          value: cacheState.data,
           loading: false,
           fetching: true,
           error: null,
         });
       } else {
-        eventBus.pub(signalId, {
+        updateState({
           value: null,
           loading: true,
           fetching: true,
@@ -46,55 +132,34 @@ const createAsyncSignal = ({
         });
       }
 
-      abortController?.abort();
-      abortController = new AbortController();
+      executeNewQuery(queryFn);
+    },
 
-      queryFn({ signal: abortController.signal })
-        .then((value) => {
-          eventBus.pub(signalId, {
-            value,
-            loading: false,
-            fetching: false,
-            error: null,
-          });
-
-          cache.set(queryKey, {
-            data: value,
-            last_query_at: Date.now(),
-          });
-
-          onSuccess?.(value);
-        })
-        .catch((error) => {
-          if (error.name === "AbortError") {
-            return;
-          }
-
-          eventBus.pub(signalId, {
-            value: cached?.data || null,
-            loading: false,
-            fetching: false,
-            error,
-          });
-
-          onError?.(error);
-        });
+    refetch: (queryFn) => {
+      cleanupActiveQuery(queryKey);
+      cache.delete(queryKey);
+      signal.query(queryFn);
     },
 
     invalidate: () => {
       cache.delete(queryKey);
     },
+
+    abort: () => {
+      abortController?.abort();
+      cleanupActiveQuery(queryKey);
+    },
   };
 
   const Watch = ({ children }) => {
     const [signalState, setSignalState] = useState(() => {
-      const cached = cache.get(queryKey);
-      if (cached) {
-        const isStale = Date.now() - cached.last_query_at > staleTime;
+      const cacheState = getCacheState(queryKey, staleTime);
+
+      if (cacheState) {
         return {
-          value: cached.data,
+          value: cacheState.data,
           loading: false,
-          fetching: isStale,
+          fetching: cacheState.isStale || activeQueries.has(queryKey),
           error: null,
         };
       }
@@ -118,7 +183,9 @@ const createAsyncSignal = ({
 
           if (gcTime > 0) {
             setTimeout(() => {
-              cache.delete(queryKey);
+              if (!activeQueries.has(queryKey)) {
+                cache.delete(queryKey);
+              }
             }, gcTime);
           }
         }
