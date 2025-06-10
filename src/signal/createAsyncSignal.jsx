@@ -135,19 +135,8 @@ const createAsyncSignal = ({
       executeNewQuery(queryFn);
     },
 
-    refetch: (queryFn) => {
-      cleanupActiveQuery(queryKey);
-      cache.delete(queryKey);
-      signal.query(queryFn);
-    },
-
     invalidate: () => {
       cache.delete(queryKey);
-    },
-
-    abort: () => {
-      abortController?.abort();
-      cleanupActiveQuery(queryKey);
     },
   };
 
