@@ -84,10 +84,6 @@ const createAsyncSignal = ({
     invalidate: () => {
       cache.delete(queryKey);
     },
-
-    abort: () => {
-      abortController?.abort();
-    },
   };
 
   const Watch = ({ children }) => {
@@ -128,7 +124,7 @@ const createAsyncSignal = ({
         }
       };
     }, []);
-    console.log(cache);
+
     return children(signalState);
   };
 
