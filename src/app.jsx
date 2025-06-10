@@ -1,7 +1,5 @@
-import TestComponent from "./testComponent";
-
 const App = () => {
-  return <TestComponent />;
+  return <div>Hello Signals</div>;
 };
 
 export default App;
