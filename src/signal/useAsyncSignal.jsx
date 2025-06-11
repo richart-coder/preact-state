@@ -153,7 +153,7 @@ const useAsyncSignal = ({
 } = {}) => {
   const queryObject = queryClient.ensureQuery(queryKey);
   const refetch = () => {
-    return doQuery(queryObject, queryKey, queryFn);
+    return doQuery(queryObject, queryFn, onSuccess, onError);
   };
 
   const Watch = ({ children }) => {
