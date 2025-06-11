@@ -149,22 +149,9 @@ const useAsyncSignal = ({
   onSuccess,
   enabled = true,
 } = {}) => {
-  const getQueryObject = () => {
-    return queryClient.ensureQuery(queryKey);
-  };
-
-  const queryObject = getQueryObject();
-
+  const queryObject = queryClient.ensureQuery(queryKey);
   const refetch = () => {
     return executeQuery(queryObject, queryKey, queryFn);
-  };
-
-  const invalidate = () => {
-    return queryClient.removeQuery(queryKey);
-  };
-
-  const setData = (updater) => {
-    return queryClient.setQueryData(queryKey, updater);
   };
 
   const Watch = ({ children }) => {
@@ -223,16 +210,11 @@ const useAsyncSignal = ({
       dataUpdatedAt: queryObject.dataUpdatedAt,
       errorUpdatedAt: queryObject.errorUpdatedAt,
       failureCount: queryObject.failureCount,
-      refetch,
-      invalidate,
-      setData,
     });
   };
 
   return {
     refetch,
-    invalidate,
-    setData,
     Watch,
   };
 };
