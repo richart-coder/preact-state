@@ -95,7 +95,7 @@ const queryClient = {
   },
 };
 
-const executeQuery = (queryObject, queryKey, queryFn) => {
+const doQuery = (queryObject, queryFn, onSuccess, onError) => {
   if (queryObject.abortController) {
     queryObject.abortController.abort();
   }
@@ -121,6 +121,7 @@ const executeQuery = (queryObject, queryKey, queryFn) => {
         dataUpdatedAt: Date.now(),
         failureCount: 0,
       });
+      onSuccess?.(data);
     })
     .catch((error) => {
       if (error.name === "AbortError") return;
@@ -132,6 +133,7 @@ const executeQuery = (queryObject, queryKey, queryFn) => {
         errorUpdatedAt: Date.now(),
         failureCount: queryObject.failureCount + 1,
       });
+      onError?.(error);
     })
     .finally(() => {
       queryObject.promise = null;
@@ -151,7 +153,7 @@ const useAsyncSignal = ({
 } = {}) => {
   const queryObject = queryClient.ensureQuery(queryKey);
   const refetch = () => {
-    return executeQuery(queryObject, queryKey, queryFn);
+    return doQuery(queryObject, queryKey, queryFn);
   };
 
   const Watch = ({ children }) => {
@@ -166,14 +168,15 @@ const useAsyncSignal = ({
 
         if (!cacheState || cacheState.isStale) {
           if (queryObject.promise) {
+            const data = cacheState?.data;
             queryObject.updateState({
-              status: "loading",
+              status: data ? "success" : "loading",
               isFetching: true,
-              data: cacheState?.data || null,
+              data,
             });
           } else {
             if (queryFn) {
-              executeQuery(queryObject, queryKey, queryFn);
+              doQuery(queryObject, queryFn, onSuccess, onError);
             }
           }
         } else {
