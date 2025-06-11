@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useLayoutEffect, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useState } from "preact/hooks";
 
 const createQuery = () => {
   return {
@@ -15,15 +15,28 @@ const createQuery = () => {
     failureCount: 0,
     abortController: null,
     promise: null,
+    invalidatedAt: null,
     subscribers: new Set(),
+    isStale(staleTime) {
+      if (!this.dataUpdatedAt) return true;
 
+      if (this.invalidatedAt && this.invalidatedAt > this.dataUpdatedAt) {
+        return true;
+      }
+
+      if (Date.now() - this.dataUpdatedAt > staleTime) {
+        return true;
+      }
+
+      return false;
+    },
     updateState: function (newState) {
       Object.assign(this, newState);
       this.isLoading = this.status === "loading";
       this.isSuccess = this.status === "success";
       this.isError = this.status === "error";
 
-      this.subscribers.forEach((callback) => callback(this));
+      this.subscribers.forEach((callback) => callback());
     },
   };
 };
@@ -75,9 +88,13 @@ const queryClient = {
 
   invalidateQueries(queryKey) {
     if (queryKey) {
-      queryCache.delete(queryKey);
-    } else {
-      queryCache.clear();
+      const queryObject = queryCache.get(queryKey);
+
+      if (queryObject) {
+        queryObject.updateState({
+          invalidatedAt: Date.now(),
+        });
+      }
     }
   },
 
@@ -85,7 +102,8 @@ const queryClient = {
     const queryObject = queryCache.get(queryKey);
     if (!queryObject || !queryObject.dataUpdatedAt) return null;
 
-    const isStale = Date.now() - queryObject.dataUpdatedAt > staleTime;
+    const isStale = queryObject.isStale(staleTime);
+
     return {
       data: queryObject.data,
       isStale,
@@ -120,6 +138,7 @@ const doQuery = (queryObject, queryFn, onSuccess, onError) => {
         isFetching: false,
         dataUpdatedAt: Date.now(),
         failureCount: 0,
+        invalidatedAt: null,
       });
       onSuccess?.(data);
     })
@@ -160,34 +179,10 @@ const useAsyncSignal = ({
     const [, forceUpdate] = useState({});
 
     useLayoutEffect(() => {
-      const callback = () => forceUpdate({});
+      const callback = () => {
+        forceUpdate({});
+      };
       queryObject.subscribers.add(callback);
-
-      if (enabled) {
-        const cacheState = queryClient.getCacheState(queryKey, staleTime);
-
-        if (!cacheState || cacheState.isStale) {
-          if (queryObject.promise) {
-            const data = cacheState?.data;
-            queryObject.updateState({
-              status: data ? "success" : "loading",
-              isFetching: true,
-              data,
-            });
-          } else {
-            if (queryFn) {
-              doQuery(queryObject, queryFn, onSuccess, onError);
-            }
-          }
-        } else {
-          queryObject.updateState({
-            status: "success",
-            data: cacheState.data,
-            isFetching: false,
-            error: null,
-          });
-        }
-      }
 
       return () => {
         queryObject.subscribers.delete(callback);
@@ -201,8 +196,41 @@ const useAsyncSignal = ({
               }
             }, gcTime);
       };
-    }, [queryKey, queryFn, enabled, staleTime, gcTime]);
+    }, []);
 
+    useEffect(() => {
+      if (enabled) {
+        const cacheState = queryClient.getCacheState(queryKey, staleTime);
+
+        if (!cacheState || cacheState.isStale) {
+          if (queryObject.promise) {
+            const data = cacheState?.data;
+            Object.assign(queryObject, {
+              status: data ? "success" : "loading",
+              isFetching: true,
+              data,
+              isLoading: !data,
+              isSuccess: !!data,
+              isError: false,
+            });
+          } else {
+            if (queryFn) {
+              doQuery(queryObject, queryFn, onSuccess, onError);
+            }
+          }
+        } else {
+          Object.assign(queryObject, {
+            status: "success",
+            data: cacheState.data,
+            isFetching: false,
+            error: null,
+            isLoading: false,
+            isSuccess: true,
+            isError: false,
+          });
+        }
+      }
+    }, [enabled, queryKey, staleTime, queryObject.invalidatedAt]);
     return children({
       data: queryObject.data,
       error: queryObject.error,
