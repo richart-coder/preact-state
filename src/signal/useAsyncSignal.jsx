@@ -177,15 +177,13 @@ const useAsyncSignal = ({
 
   const Watch = ({ children }) => {
     const [, forceUpdate] = useState({});
-    const [updateTrigger, setUpdateTrigger] = useState(0);
 
     useLayoutEffect(() => {
       const callback = () => {
         forceUpdate({});
       };
-
-      setUpdateTrigger((prev) => prev + 1);
       queryObject.subscribers.add(callback);
+
       return () => {
         queryObject.subscribers.delete(callback);
         if (queryObject.subscribers.size > 0) return;
@@ -199,6 +197,7 @@ const useAsyncSignal = ({
             }, gcTime);
       };
     }, []);
+
     useEffect(() => {
       if (enabled) {
         const cacheState = queryClient.getCacheState(queryKey, staleTime);
