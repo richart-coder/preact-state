@@ -188,14 +188,15 @@ const useAsyncSignal = ({
 
       return () => {
         queryObject.subscribers.delete(callback);
+        if (queryObject.subscribers.size > 0) return;
 
-        if (queryObject.subscribers.size === 0 && gcTime > 0) {
-          setTimeout(() => {
-            if (queryObject.subscribers.size === 0 && !queryObject.promise) {
-              queryClient.removeQuery(queryKey);
-            }
-          }, gcTime);
-        }
+        gcTime == 0
+          ? queryClient.removeQuery(queryKey)
+          : setTimeout(() => {
+              if (queryObject.subscribers.size === 0 && !queryObject.promise) {
+                queryClient.removeQuery(queryKey);
+              }
+            }, gcTime);
       };
     }, [queryKey, queryFn, enabled, staleTime, gcTime]);
 
