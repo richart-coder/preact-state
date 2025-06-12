@@ -42,17 +42,20 @@ const createQuery = () => {
 };
 
 const MINUTES = 60 * 1000;
-const queryCache = new Map();
+
+const queryCache = {
+  map: new Map(),
+  getOrCreate(queryKey) {
+    if (!this.map.has(queryKey)) {
+      this.map.set(queryKey, createQuery());
+    }
+    return this.map.get(queryKey);
+  },
+};
 
 const queryClient = {
   setQueryData(queryKey, updater) {
-    const queryObject =
-      queryCache.get(queryKey) ||
-      (() => {
-        const newQuery = createQuery(queryKey);
-        queryCache.set(queryKey, newQuery);
-        return newQuery;
-      })();
+    const queryObject = queryCache.getOrCreate(queryKey);
 
     const newData =
       typeof updater === "function" ? updater(queryObject.data) : updater;
@@ -66,29 +69,13 @@ const queryClient = {
     });
   },
 
-  getQueryData(queryKey) {
-    const queryObject = queryCache.get(queryKey);
-    return queryObject ? queryObject.data : undefined;
-  },
-
-  getQuery(queryKey) {
-    return queryCache.get(queryKey);
-  },
-
-  ensureQuery(queryKey) {
-    if (!queryCache.has(queryKey)) {
-      queryCache.set(queryKey, createQuery(queryKey));
-    }
-    return queryCache.get(queryKey);
-  },
-
   removeQuery(queryKey) {
-    return queryCache.delete(queryKey);
+    return queryCache.map.delete(queryKey);
   },
 
   invalidateQueries(queryKey) {
     if (queryKey) {
-      const queryObject = queryCache.get(queryKey);
+      const queryObject = queryCache.map.get(queryKey);
 
       if (queryObject) {
         queryObject.updateState({
@@ -99,8 +86,8 @@ const queryClient = {
   },
 
   getCacheState(queryKey, staleTime) {
-    const queryObject = queryCache.get(queryKey);
-    if (!queryObject || !queryObject.dataUpdatedAt) return null;
+    const queryObject = queryCache.map.get(queryKey);
+    if (!queryObject) return null;
 
     const isStale = queryObject.isStale(staleTime);
 
@@ -111,6 +98,21 @@ const queryClient = {
       hasActiveQuery: queryObject.promise !== null,
     };
   },
+  ensureQuery(queryKey) {
+    return queryCache.getOrCreate(queryKey);
+  },
+  getStats() {
+    const stats = {};
+    for (const [key, query] of queryCache.map.entries()) {
+      stats[key] = {
+        subscribersCount: query.subscribers.size,
+        status: query.status,
+        hasData: query.data !== null,
+        dataUpdatedAt: query.dataUpdatedAt,
+      };
+    }
+    return stats;
+  },
 };
 
 const doQuery = (queryObject, queryFn, onSuccess, onError) => {
@@ -118,13 +120,19 @@ const doQuery = (queryObject, queryFn, onSuccess, onError) => {
     queryObject.abortController.abort();
   }
 
-  queryObject.abortController = new AbortController();
+  const data = queryObject?.data;
+  if (!data) {
+    queryObject.updateState({
+      status: "loading",
+      isFetching: true,
+    });
+  } else {
+    queryObject.updateState({
+      isFetching: true,
+    });
+  }
 
-  queryObject.updateState({
-    status: "loading",
-    isFetching: true,
-    error: null,
-  });
+  queryObject.abortController = new AbortController();
 
   const queryPromise = queryFn({ signal: queryObject.abortController.signal });
   queryObject.promise = queryPromise;
@@ -144,14 +152,23 @@ const doQuery = (queryObject, queryFn, onSuccess, onError) => {
     })
     .catch((error) => {
       if (error.name === "AbortError") return;
-
-      queryObject.updateState({
-        status: "error",
-        error: error,
+      Object.assign(queryObject, {
         isFetching: false,
         errorUpdatedAt: Date.now(),
         failureCount: queryObject.failureCount + 1,
       });
+
+      if (!data) {
+        queryObject.updateState({
+          status: "error",
+          error: error,
+        });
+      } else {
+        queryObject.updateState({
+          data: data,
+        });
+      }
+
       onError?.(error);
     })
     .finally(() => {
@@ -202,35 +219,24 @@ const useAsyncSignal = ({
       if (enabled) {
         const cacheState = queryClient.getCacheState(queryKey, staleTime);
 
-        if (!cacheState || cacheState.isStale) {
-          if (queryObject.promise) {
+        if (cacheState.isStale) {
+          if (cacheState.hasActiveQuery) {
             const data = cacheState?.data;
             Object.assign(queryObject, {
               status: data ? "success" : "loading",
               isFetching: true,
-              data,
-              isLoading: !data,
-              isSuccess: !!data,
-              isError: false,
+              data: data,
+              error: null,
             });
           } else {
             if (queryFn) {
               doQuery(queryObject, queryFn, onSuccess, onError);
             }
           }
-        } else {
-          Object.assign(queryObject, {
-            status: "success",
-            data: cacheState.data,
-            isFetching: false,
-            error: null,
-            isLoading: false,
-            isSuccess: true,
-            isError: false,
-          });
         }
       }
     }, [enabled, queryKey, staleTime, queryObject.invalidatedAt]);
+
     return children({
       data: queryObject.data,
       error: queryObject.error,
@@ -239,9 +245,6 @@ const useAsyncSignal = ({
       isSuccess: queryObject.isSuccess,
       isError: queryObject.isError,
       isFetching: queryObject.isFetching,
-      dataUpdatedAt: queryObject.dataUpdatedAt,
-      errorUpdatedAt: queryObject.errorUpdatedAt,
-      failureCount: queryObject.failureCount,
     });
   };
 
