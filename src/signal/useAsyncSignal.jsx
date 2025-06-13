@@ -56,7 +56,6 @@ const MINUTES = 60 * 1000;
 /**
  * 查詢快取管理器
  */
-
 const queryCache = {
   map: new Map(),
   /**
