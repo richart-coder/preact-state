@@ -1,9 +1,10 @@
 const debounce = (fn, timeout) => {
   let timerId;
-  return (...args) => {
+  return function (...args) {
+    const ctx = this;
     clearTimeout(timerId);
     timerId = setTimeout(() => {
-      fn(...args);
+      fn.apply(ctx, args);
     }, timeout);
   };
 };

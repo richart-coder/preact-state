@@ -382,7 +382,7 @@ const useAsyncSignal = ({
     useEffect(() => {
       if (canFetch()) {
         if (queryObject.promise) {
-          const data = cacheState?.data;
+          const data = queryObject.data;
           Object.assign(queryObject, {
             status: data ? "success" : "loading",
             isFetching: true,
