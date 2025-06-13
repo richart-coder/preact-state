@@ -276,10 +276,13 @@ const useAsyncSignal = ({
   const refetch = () => {
     return doQuery(queryObject, queryFn, onSuccess, onError);
   };
-  const getFrequency = (interval) => {
-    return interval > 0 && interval <= 5000
+  const getFrequency = () => {
+    if (typeof refetchInterval !== "number" && !refetchInterval) {
+      return "low";
+    }
+    return refetchInterval > 0 && refetchInterval <= 5000
       ? "high"
-      : interval > 5000 && interval <= 30000
+      : refetchInterval > 5000 && refetchInterval <= 30000
       ? "medium"
       : "low";
   };
@@ -312,10 +315,7 @@ const useAsyncSignal = ({
     },
   };
   const canFetchOptimalStrategy = () => {
-    if (typeof refetchInterval !== "number" && !refetchInterval) {
-      return () => false;
-    }
-    const frequency = getFrequency(refetchInterval);
+    const frequency = getFrequency();
     return frequencyStrategy[frequency];
   };
   const canFetch = canFetchOptimalStrategy();
