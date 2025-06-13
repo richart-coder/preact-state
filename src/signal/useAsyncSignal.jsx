@@ -308,6 +308,7 @@ const useAsyncSignal = ({
       if (isFetching) return false;
       if (error && failureCount >= retry) return false;
       if (data && !queryObject.isStale(staleTime)) return false;
+      return true;
     },
   };
   const canFetchOptimalStrategy = () => {
