@@ -355,7 +355,8 @@ const useAsyncSignal = ({
        * @returns {Function} 清理函數
        */
       function setupRefetchSchedule(refetchInterval) {
-        if (!refetchInterval) return () => {};
+        if (typeof refetchInterval !== "number" && !refetchInterval)
+          return () => {};
 
         let timerId;
         function schedule() {
