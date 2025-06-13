@@ -276,8 +276,50 @@ const useAsyncSignal = ({
   const refetch = () => {
     return doQuery(queryObject, queryFn, onSuccess, onError);
   };
-
-  /**
+  const getFrequency = (interval) => {
+    return interval > 0 && interval <= 5000
+      ? "high"
+      : interval > 5000 && interval <= 30000
+      ? "medium"
+      : "low";
+  };
+  const frequencyStrategy = {
+    high: () => {
+      const { data, error, isFetching, failureCount } = queryObject;
+      if (data && !queryObject.isStale(staleTime)) return false;
+      if (isFetching) return false;
+      if (!enabled) return false;
+      if (error && failureCount >= retry) return false;
+      if (!queryFn) return false;
+      return true;
+    },
+    medium: () => {
+      const { data, error, isFetching, failureCount } = queryObject;
+      if (!enabled || !queryFn) return false;
+      if (data && !queryObject.isStale(staleTime)) return false;
+      if (isFetching) return false;
+      if (error && failureCount >= retry) return false;
+      return true;
+    },
+    low: () => {
+      const { data, error, isFetching, failureCount } = queryObject;
+      if (!enabled) return false;
+      if (!queryFn) return false;
+      if (isFetching) return false;
+      if (error && failureCount >= retry) return false;
+      if (data && !queryObject.isStale(staleTime)) return false;
+      return true;
+    },
+  };
+  const canFetchOptimalStrategy = () => {
+    if (typeof refetchInterval !== "number" && !refetchInterval) {
+      return () => false;
+    }
+    const frequency = getFrequency(refetchInterval);
+    return frequencyStrategy[frequency];
+  };
+  const canFetch = canFetchOptimalStrategy();
+  /*
    * 監聽查詢狀態的 React 組件
    * @param {Object} props - 組件屬性
    * @param {Function} props.children - 渲染函數，接收查詢狀態作為參數
@@ -286,18 +328,6 @@ const useAsyncSignal = ({
   const Watch = ({ children }) => {
     const [, forceUpdate] = useState({});
 
-    const canFetch = () => {
-      if (!enabled) return false;
-      if (!queryFn) return false;
-      if (queryObject.isFetching) return false;
-      if (queryObject.error && queryObject.failureCount >= retry) {
-        return false;
-      }
-      if (queryObject.data && !queryObject.isStale(staleTime)) {
-        return false;
-      }
-      return true;
-    };
     useLayoutEffect(() => {
       const uiForceUpdater = () => {
         forceUpdate({});
