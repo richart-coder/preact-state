@@ -176,7 +176,6 @@ const queryClient = {
  * @returns {Promise} 查詢 Promise
  */
 const doQuery = (queryObject, queryFn, onSuccess, onError) => {
-  console.log(queryObject, queryFn, onSuccess, onError);
   if (queryObject.abortController) {
     queryObject.abortController.abort();
   }
