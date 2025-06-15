@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useEffect, useLayoutEffect, useMemo, useState } from "preact/hooks";
 import debounce from "../utils/debounce";
 
@@ -79,26 +78,30 @@ const queryCache = {
    * @param {Function} callbackFn - 回調函數，接收 [queryKey, queryObject] 參數
    */
   forEach(callbackFn) {
-    for (const entries of this.map) {
-      callbackFn(entries);
+    for (const entry of this.map) {
+      callbackFn(entry);
     }
   },
+  /**
+   * 對查詢快取中的所有項目執行 reduce 操作
+   * @param {Function} reducer - 累積函數，接收 (accumulator, [cacheKey, queryObject]) 參數
+   * @param {*} initValue - 初始累積值
+   * @returns {*} 最終累積結果
+   */
   reduce(reducer, initValue) {
     let acc = initValue;
-    for (const entries of this.map) {
-      acc = reducer(acc, entries);
+    for (const entry of this.map) {
+      acc = reducer(acc, entry);
     }
     return acc;
   },
 };
 
 const stringifyKey = (key) => JSON.stringify(key);
-/**
- * @typedef {(string|number|boolean|null|{[key: string]: string|number|boolean|null})[]} QueryKey
- */
 
 /**
  * 查詢客戶端，提供快取管理功能
+ * @typedef {(string|number|boolean|null|{[key: string]: string|number|boolean|null})[]} QueryKey
  */
 const queryClient = {
   /**
@@ -286,9 +289,7 @@ const doQuery = (queryObject, queryFn, onSuccess, onError) => {
  * @param {Function} [options.onSuccess] - 成功回調函數
  * @param {number} [options.retry=3] - 失敗重試次數
  * @param {boolean} [options.enabled=true] - 是否啟用查詢
- * @returns {Object} 包含 refetch 和 Watch 的物件
- * @returns {Function} returns.refetch - 手動重新獲取資料的函數
- * @returns {Function} returns.Watch - 監聽查詢狀態的 React 組件
+ * @returns {Object} 包含 refetch 和 Watch 的物件，其中 refetch 是手動重新獲取資料的函數，Watch 是監聽查詢狀態的 React 組件
  */
 const useQuerySignal = ({
   queryFn,
@@ -301,7 +302,7 @@ const useQuerySignal = ({
   onSuccess,
   retry = 3,
   enabled = true,
-} = {}) => {
+}) => {
   const queryObject = queryClient.ensureQuery(queryKey);
 
   /**
@@ -391,7 +392,7 @@ const useQuerySignal = ({
         useLayoutEffect(() => {
           /**
            * 設置定時重新獲取
-           * @param {number|false} refetchInterval - 重新獲取間隔
+           * @param {number} refetchInterval - 重新獲取間隔
            * @returns {Function} 清理函數
            */
           function setupRefetchSchedule(refetchInterval) {
