@@ -154,7 +154,6 @@ const queryClient = {
   /**
    * 使查詢失效
    * @param {QueryKey} queryKey - 查詢鍵值
-
    * @param {boolean} exact - 是否精確匹配，true 為精確匹配，false 為前綴匹配
    * @returns {Promise<number>} 失效的查詢數量
    */
@@ -355,7 +354,7 @@ const useQuerySignal = ({
     return frequencyStrategy[frequency];
   };
   const canFetch = canFetchOptimalStrategy();
-  /*
+  /**
    * 監聽查詢狀態的 React 組件
    * @param {Object} props - 組件屬性
    * @param {Function} props.children - 渲染函數，接收查詢狀態作為參數
@@ -392,31 +391,29 @@ const useQuerySignal = ({
         useLayoutEffect(() => {
           /**
            * 設置定時重新獲取
-           * @param {number} refetchInterval - 重新獲取間隔
            * @returns {Function} 清理函數
            */
-          function setupRefetchSchedule(refetchInterval) {
+          function setupRefetchSchedule() {
             if (typeof refetchInterval !== "number" && !refetchInterval)
               return () => {};
 
             let timerId;
-            function schedule() {
+            function schedule(interval) {
               timerId = setTimeout(() => {
                 if (canFetch()) {
                   refetch();
                 }
-
                 schedule();
-              }, refetchInterval);
+              }, interval);
             }
-            schedule();
+            schedule(refetchInterval);
 
             return () => {
               clearTimeout(timerId);
             };
           }
 
-          const cleanupRefetchSchedule = setupRefetchSchedule(refetchInterval);
+          const cleanupRefetchSchedule = setupRefetchSchedule();
           return () => {
             cleanupRefetchSchedule();
           };
