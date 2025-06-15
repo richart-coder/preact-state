@@ -1,116 +1,223 @@
-import { useState } from "preact/hooks";
-import React, { useCallback } from "react";
-import useAsyncSignal from "./signal/useAsyncSignal";
+// @ts-nocheck
+import { useCallback, useState } from "preact/hooks";
+import React from "react";
+import useQuerySignal from "./signal/useQuerySignal";
+const TestComponent = () => {
+  const [enabled, setEnabled] = useState(true);
+  const [refetchOnWindowFocus, setRefetchOnWindowFocus] = useState(true);
+  const [refetchInterval, setRefetchInterval] = useState(false);
+  const [logs, setLogs] = useState([]);
 
-// 測試用的靜態 queryFn
-const testQueryFn = async () => {
-  console.log("⚡ queryFn 執行");
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  return { message: "成功獲取數據", timestamp: Date.now() };
-};
-
-// 無限 Request 測試組件
-const InfiniteRequestTest = () => {
-  console.log("🏠 InfiniteRequestTest 重新渲染");
-
-  const [requestCount, setRequestCount] = useState(0);
-
-  // 使用 useCallback 避免 queryFn 變化
-  const queryFn = useCallback(async () => {
-    setRequestCount((prev) => prev + 1);
-    return testQueryFn();
+  const addLog = useCallback((message) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setLogs((prev) => [...prev, `${timestamp}: ${message}`]);
   }, []);
 
-  const { Watch } = useAsyncSignal({
-    queryKey: "infinite-test",
+  // 模擬的 queryFn
+  const queryFn = useCallback(async () => {
+    addLog("🔄 queryFn 執行");
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    return { data: `Data at ${Date.now()}`, random: Math.random() };
+  }, [addLog]);
+
+  // 假設這是你的 useAsyncSignal
+  const { refetch, Watch } = useQuerySignal({
+    queryKey: ["test-data"],
     queryFn,
-    enabled: true,
-    staleTime: 2000, // 立即過期
-    refetchInterval: 600000,
-    onSuccess: (data) => console.log("✅ 成功:", data),
-    onError: (error) => console.log("❌ 錯誤:", error),
+    enabled,
+    refetchOnWindowFocus,
+    refetchInterval: refetchInterval ? 3000 : false, // 3秒間隔
+    onSuccess: (data) => addLog(`✅ 成功: ${JSON.stringify(data)}`),
+    onError: (error) => addLog(`❌ 錯誤: ${error.message}`),
+    staleTime: 0, // 2秒後過期
   });
+
+  const clearLogs = () => setLogs([]);
 
   return (
     <div style={{ padding: "20px", fontFamily: "monospace" }}>
-      <h2 style={{ color: "#e74c3c" }}>⚠️ 無限 Request 測試</h2>
+      <h2>useAsyncSignal 時機測試</h2>
 
-      <div
-        style={{
-          padding: "15px",
-          backgroundColor: "#fff3cd",
-          border: "1px solid #ffeaa7",
-          borderRadius: "5px",
-          marginBottom: "20px",
-        }}
-      >
-        <strong>警告：</strong>這個測試可能會產生無限 Request！
-        <br />
-        請觀察 Console 輸出和 Request 計數器。
+      <div style={{ marginBottom: "20px" }}>
+        <h3>控制選項</h3>
+        <div style={{ display: "flex", gap: "15px", flexWrap: "wrap" }}>
+          <label>
+            <input
+              type="checkbox"
+              checked={enabled}
+              onChange={(e) => setEnabled(e.target.checked)}
+            />
+            enabled
+          </label>
+
+          <label>
+            <input
+              type="checkbox"
+              checked={refetchOnWindowFocus}
+              onChange={(e) => setRefetchOnWindowFocus(e.target.checked)}
+            />
+            refetchOnWindowFocus
+          </label>
+
+          <label>
+            <input
+              type="checkbox"
+              checked={refetchInterval}
+              onChange={(e) => setRefetchInterval(e.target.checked)}
+            />
+            refetchInterval (3秒)
+          </label>
+        </div>
       </div>
 
       <div style={{ marginBottom: "20px" }}>
-        <div
-          style={{
-            fontSize: "24px",
-            fontWeight: "bold",
-            color: requestCount > 10 ? "#e74c3c" : "#27ae60",
-          }}
-        >
-          Request 計數: {requestCount}
+        <h3>手動觸發</h3>
+        <button onClick={() => refetch()}>🔄 手動 refetch</button>
+      </div>
+
+      <div style={{ marginBottom: "20px" }}>
+        <h3>自動觸發測試</h3>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <button
+            onClick={() => {
+              addLog("👁️ 模擬失去焦點");
+              window.dispatchEvent(new Event("blur"));
+            }}
+          >
+            模擬失去焦點
+          </button>
+
+          <button
+            onClick={() => {
+              addLog("👁️ 模擬重新聚焦");
+              window.dispatchEvent(new Event("focus"));
+            }}
+          >
+            模擬重新聚焦
+          </button>
+
+          <button
+            onClick={() => {
+              addLog("👁️ 模擬切換分頁 (離開)");
+              Object.defineProperty(document, "visibilityState", {
+                value: "hidden",
+                configurable: true,
+              });
+              document.dispatchEvent(new Event("visibilitychange"));
+            }}
+          >
+            模擬切換分頁 (離開)
+          </button>
+
+          <button
+            onClick={() => {
+              addLog("👁️ 模擬切換分頁 (回來)");
+              Object.defineProperty(document, "visibilityState", {
+                value: "visible",
+                configurable: true,
+              });
+              document.dispatchEvent(new Event("visibilitychange"));
+            }}
+          >
+            模擬切換分頁 (回來)
+          </button>
         </div>
-        {requestCount > 10 && (
-          <div style={{ color: "#e74c3c", fontWeight: "bold" }}>
-            🚨 可能出現無限循環！
-          </div>
-        )}
       </div>
 
       <Watch>
         {({ data, error, status, isLoading, isFetching }) => (
-          <div
-            style={{
-              padding: "15px",
-              backgroundColor: "#f8f9fa",
-              borderRadius: "5px",
-              border: "1px solid #dee2e6",
-            }}
-          >
+          <div style={{ marginBottom: "20px" }}>
             <h3>查詢狀態</h3>
-            <div>
-              <strong>Status:</strong> {status}
-            </div>
-            <div>
-              <strong>Loading:</strong> {isLoading ? "是" : "否"}
-            </div>
-            <div>
-              <strong>Fetching:</strong> {isFetching ? "是" : "否"}
-            </div>
-            <div>
-              <strong>Data:</strong> {data ? JSON.stringify(data) : "無"}
-            </div>
-            <div>
-              <strong>Error:</strong> {error ? error.message : "無"}
+            <div
+              style={{
+                padding: "10px",
+                backgroundColor: "#f5f5f5",
+                borderRadius: "5px",
+                fontSize: "14px",
+              }}
+            >
+              <div>
+                <strong>Status:</strong> {status}
+              </div>
+              <div>
+                <strong>Loading:</strong> {isLoading ? "是" : "否"}
+              </div>
+              <div>
+                <strong>Fetching:</strong> {isFetching ? "是" : "否"}
+              </div>
+              <div>
+                <strong>Data:</strong> {data ? JSON.stringify(data) : "無"}
+              </div>
+              <div>
+                <strong>Error:</strong> {error ? error.message : "無"}
+              </div>
             </div>
           </div>
         )}
       </Watch>
 
+      <div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <h3>執行日誌</h3>
+          <button onClick={clearLogs} style={{ padding: "5px 10px" }}>
+            清除日誌
+          </button>
+        </div>
+        <div
+          style={{
+            height: "300px",
+            overflow: "auto",
+            border: "1px solid #ccc",
+            padding: "10px",
+            backgroundColor: "#fff",
+            fontSize: "12px",
+          }}
+        >
+          {logs.map((log, index) => (
+            <div key={index}>{log}</div>
+          ))}
+        </div>
+      </div>
+
       <div style={{ marginTop: "20px", fontSize: "12px", color: "#666" }}>
-        <h4>觀察要點：</h4>
+        <h4>測試說明:</h4>
         <ul>
-          <li>Console 中是否有持續的 "🚀 doQuery 執行" 輸出</li>
-          <li>Request 計數是否持續增加</li>
-          <li>"🔄 useAsyncSignal 重新執行" 是否只出現一次</li>
-          <li>"👁️ Watch 組件重新渲染" 是否持續出現</li>
-          <li>"📊 useEffect 觸發" 的頻率和內容</li>
+          <li>
+            <strong>初始載入:</strong> 組件掛載時自動觸發
+          </li>
+          <li>
+            <strong>手動 refetch:</strong> 點擊按鈕觸發
+          </li>
+          <li>
+            <strong>視窗聚焦:</strong> 測試 focus 事件觸發 (需要
+            refetchOnWindowFocus=true)
+          </li>
+          <li>
+            <strong>分頁切換:</strong> 測試 visibilitychange 事件觸發
+          </li>
+          <li>
+            <strong>定時刷新:</strong> 每 3 秒自動觸發 (需要
+            refetchInterval=true)
+          </li>
+          <li>
+            <strong>enabled:</strong> 控制是否啟用查詢
+          </li>
         </ul>
+        <p>
+          <strong>注意:</strong> 真實的焦點事件需要實際切換視窗或分頁才能測試
+        </p>
       </div>
     </div>
   );
 };
 
 const App = () => {
-  return <InfiniteRequestTest></InfiniteRequestTest>;
+  return <TestComponent></TestComponent>;
 };
 export default App;
