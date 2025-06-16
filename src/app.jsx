@@ -1,4 +1,5 @@
 const App = () => {
-  return <div>Hello Signals</div>;
+  return <div>Hello Signal</div>;
 };
+
 export default App;
