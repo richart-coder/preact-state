@@ -3,7 +3,8 @@ import { useState } from "preact/hooks";
 /**
  * @template T
  * @typedef {Object} SignalObject
- * @property {T | null} value - 當前狀態值（getter/setter）
+ * @property {T | null} value - 當前狀態值
+ * @property {(prevState: T | null) => T} value - 設定新的狀態值
  */
 
 /**
@@ -16,18 +17,14 @@ import { useState } from "preact/hooks";
 function useGlobalSignal(initialValue) {
   const [state, setState] = useState(initialValue);
   return {
-    /**
-     * 取得或設定當前的狀態值
-     * @type {T}
-     */
     get value() {
       return state;
     },
-    /**
-     * 設定新的狀態值，必須傳入函數
-     * @param {(prevState: T) => T} updater - 更新函數
-     */
+
     set value(updater) {
+      if (typeof updater !== "function") {
+        throw new Error("updater must be a function");
+      }
       setState(updater);
     },
   };

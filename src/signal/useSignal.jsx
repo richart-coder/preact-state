@@ -4,13 +4,13 @@ import eventBus from "../utils/eventBus";
 /**
  * @template T
  * @typedef {Object} SignalObject
- * @property {T | null} value - 當前狀態值（getter/setter）
+ * @property {T | null} value - 當前狀態值
+ * @property {(prevState: T | null) => T} value - 設定新的狀態值
  * @property {JSX.Element} Watch - 監聽組件，用於自動重新渲染
  */
 
 /**
  * 建立一個本地 Signal，使用 eventBus 進行跨組件狀態同步
- *
  * @template T
  * @param {T | null} initialValue - 初始值
  * @returns {SignalObject<T>} 包含 value getter/setter 和 Watch 組件的 Signal 物件
@@ -37,10 +37,10 @@ function useSignal(initialValue) {
   };
 
   /**
-   * Watch 組件 - 包裹需要響應 Signal 變化的 JSX
+   * Watch 組件 - 包裹需要響應 Signal 變化的內容
    * @param {Object} props
-   * @param {function} props.children - 渲染函數，返回 JSX 元素
-   * @returns {JSX.Element} 渲染結果
+   * @param {Function} props.children - 渲染函數，返回任意內容
+   * @returns {*} 渲染結果
    */
   const Watch = ({ children }) => {
     useSignalEffect();
@@ -48,28 +48,17 @@ function useSignal(initialValue) {
   };
 
   return {
-    /**
-     * 取得或設定當前的狀態值
-     * @type {T | null}
-     */
     get value() {
       return _value;
     },
 
-    /**
-     * 設定新的狀態值，必須傳入更新函數
-     * @param {(prevState: T | null) => T} updater - 更新函數，接收前一個值並返回新值
-     *
-     */
     set value(updater) {
+      if (typeof updater !== "function") {
+        throw new Error("updater must be a function");
+      }
       _value = updater(_value);
       eventBus.pub(signalId, _value);
     },
-
-    /**
-     * Watch 組件，用於監聽 Signal 變化並自動重新渲染
-     * @type {function({ children: function(): JSX.Element }): JSX.Element}
-     */
     Watch,
   };
 }
