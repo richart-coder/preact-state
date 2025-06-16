@@ -385,7 +385,7 @@ const useQuerySignal = ({
       function schedule(interval) {
         timerId = setTimeout(async () => {
           await refetch();
-          schedule();
+          schedule(interval);
         }, interval);
       }
       schedule(refetchInterval);
