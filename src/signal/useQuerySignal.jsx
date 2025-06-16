@@ -1,4 +1,10 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from "preact/hooks";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "preact/hooks";
 import debounce from "../utils/debounce";
 
 const createQuery = () => {
@@ -304,14 +310,7 @@ const useQuerySignal = ({
 }) => {
   const queryObject = queryClient.ensureQuery(queryKey);
 
-  /**
-   * 手動重新獲取資料
-   * @returns {Promise} 查詢 Promise
-   */
-  const refetch = () => {
-    return doQuery(queryObject, queryFn, onSuccess, onError);
-  };
-  const getFrequency = () => {
+  const frequency = useMemo(() => {
     if (typeof refetchInterval !== "number" && !refetchInterval) {
       return "low";
     }
@@ -320,40 +319,116 @@ const useQuerySignal = ({
       : refetchInterval > 5000 && refetchInterval <= 30000
       ? "medium"
       : "low";
-  };
-  const frequencyStrategy = {
-    high: () => {
-      const { data, error, isFetching, failureCount } = queryObject;
-      if (isFetching) return false;
-      if (data && !queryObject.isStale(staleTime)) return false;
-      if (!enabled) return false;
-      if (error && failureCount >= retry) return false;
-      if (!queryFn) return false;
-      return true;
-    },
-    medium: () => {
-      const { data, error, isFetching, failureCount } = queryObject;
-      if (!enabled || !queryFn) return false;
-      if (data && !queryObject.isStale(staleTime)) return false;
-      if (isFetching) return false;
-      if (error && failureCount >= retry) return false;
-      return true;
-    },
-    low: () => {
-      const { data, error, isFetching, failureCount } = queryObject;
-      if (!enabled) return false;
-      if (!queryFn) return false;
-      if (isFetching) return false;
-      if (error && failureCount >= retry) return false;
-      if (data && !queryObject.isStale(staleTime)) return false;
-      return true;
-    },
-  };
-  const canFetchOptimalStrategy = () => {
-    const frequency = getFrequency();
-    return frequencyStrategy[frequency];
-  };
-  const canFetch = canFetchOptimalStrategy();
+  }, [refetchInterval]);
+
+  const frequencyStrategy = useMemo(
+    () => ({
+      high: () => {
+        const { data, error, isFetching, failureCount } = queryObject;
+        if (isFetching) return false;
+        if (data && !queryObject.isStale(staleTime)) return false;
+        if (!enabled) return false;
+        if (error && failureCount >= retry) return false;
+        if (!queryFn) return false;
+        return true;
+      },
+      medium: () => {
+        const { data, error, isFetching, failureCount } = queryObject;
+        if (!enabled || !queryFn) return false;
+        if (data && !queryObject.isStale(staleTime)) return false;
+        if (isFetching) return false;
+        if (error && failureCount >= retry) return false;
+        return true;
+      },
+      low: () => {
+        const { data, error, isFetching, failureCount } = queryObject;
+        if (!enabled) return false;
+        if (!queryFn) return false;
+        if (isFetching) return false;
+        if (error && failureCount >= retry) return false;
+        if (data && !queryObject.isStale(staleTime)) return false;
+        return true;
+      },
+    }),
+    [enabled, staleTime, retry]
+  );
+
+  /**
+   * 手動重新獲取資料
+   * @returns {Promise} 查詢 Promise
+   */
+  const refetch = useCallback(() => {
+    const canFetch = frequencyStrategy[frequency];
+
+    if (canFetch()) {
+      return doQuery(queryObject, queryFn, onSuccess, onError);
+    }
+  }, [frequencyStrategy, frequency]);
+
+  useEffect(() => {
+    const init = async () => {
+      await refetch();
+    };
+    init();
+  }, []);
+
+  useLayoutEffect(() => {
+    /**
+     * 設置定時重新獲取
+     * @returns {Function} 清理函數
+     */
+    function setupRefetchSchedule() {
+      if (typeof refetchInterval !== "number" && !refetchInterval)
+        return () => {};
+
+      let timerId;
+      function schedule(interval) {
+        timerId = setTimeout(async () => {
+          await refetch();
+          schedule();
+        }, interval);
+      }
+      schedule(refetchInterval);
+
+      return () => {
+        clearTimeout(timerId);
+      };
+    }
+
+    const cleanupRefetchSchedule = setupRefetchSchedule();
+    return () => {
+      cleanupRefetchSchedule();
+    };
+  }, [refetchInterval]);
+
+  useLayoutEffect(() => {
+    /**
+     * 設置視窗焦點重新獲取
+     * @returns {Function} 清理函數
+     */
+    const setupRefetchOnFocus = () => {
+      if (!refetchOnWindowFocus) return () => {};
+      const abortController = new AbortController();
+      const handleFocus = async () => {
+        if (document.visibilityState === "visible") {
+          await refetch();
+        }
+      };
+      const debouncedHandleFocus = debounce(handleFocus, 200);
+      window.addEventListener("focus", debouncedHandleFocus, {
+        signal: abortController.signal,
+      });
+      window.addEventListener("visibilitychange", debouncedHandleFocus, {
+        signal: abortController.signal,
+      });
+      return () => abortController.abort();
+    };
+    const cleanupRefetchOnFocus = setupRefetchOnFocus();
+    return () => {
+      cleanupRefetchOnFocus();
+    };
+  }, [refetchOnWindowFocus]);
+
   /**
    * 監聽查詢狀態的 React 組件
    * @param {Object} props - 組件屬性
@@ -388,71 +463,6 @@ const useQuerySignal = ({
           };
         }, []);
 
-        useLayoutEffect(() => {
-          /**
-           * 設置定時重新獲取
-           * @returns {Function} 清理函數
-           */
-          function setupRefetchSchedule() {
-            if (typeof refetchInterval !== "number" && !refetchInterval)
-              return () => {};
-
-            let timerId;
-            function schedule(interval) {
-              timerId = setTimeout(() => {
-                if (canFetch()) {
-                  refetch();
-                }
-                schedule();
-              }, interval);
-            }
-            schedule(refetchInterval);
-
-            return () => {
-              clearTimeout(timerId);
-            };
-          }
-
-          const cleanupRefetchSchedule = setupRefetchSchedule();
-          return () => {
-            cleanupRefetchSchedule();
-          };
-        }, []);
-
-        useLayoutEffect(() => {
-          /**
-           * 設置視窗焦點重新獲取
-           * @returns {Function} 清理函數
-           */
-          const setupRefetchOnFocus = () => {
-            if (!refetchOnWindowFocus) return () => {};
-            const abortController = new AbortController();
-            const handleFocus = () => {
-              if (canFetch() && document.visibilityState === "visible") {
-                refetch();
-              }
-            };
-            const debouncedHandleFocus = debounce(handleFocus, 200);
-            window.addEventListener("focus", debouncedHandleFocus, {
-              signal: abortController.signal,
-            });
-            window.addEventListener("visibilitychange", debouncedHandleFocus, {
-              signal: abortController.signal,
-            });
-            return () => abortController.abort();
-          };
-          const cleanupRefetchOnFocus = setupRefetchOnFocus();
-          return () => {
-            cleanupRefetchOnFocus();
-          };
-        }, []);
-
-        useEffect(() => {
-          if (canFetch()) {
-            refetch();
-          }
-        }, []);
-
         return children({
           data: queryObject.data,
           error: queryObject.error,
@@ -463,17 +473,8 @@ const useQuerySignal = ({
           isFetching: queryObject.isFetching,
         });
       },
-    [
-      stringifyKey(queryKey),
-      enabled,
-      staleTime,
-      gcTime,
-      refetchInterval,
-      refetchOnWindowFocus,
-      retry,
-    ]
+    [stringifyKey(queryKey), gcTime]
   );
-
   return {
     refetch,
     Watch,
