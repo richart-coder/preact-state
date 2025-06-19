@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useState,
-} from "preact/hooks";
+import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import debounce from "../utils/debounce";
 
 const createQuery = () => {
@@ -372,7 +366,7 @@ const useQuerySignal = ({
     init();
   }, []);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     /**
      * 設置定時重新獲取
      * @returns {Function} 清理函數
@@ -401,7 +395,7 @@ const useQuerySignal = ({
     };
   }, [refetchInterval]);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     /**
      * 設置視窗焦點重新獲取
      * @returns {Function} 清理函數
@@ -440,7 +434,7 @@ const useQuerySignal = ({
       ({ children }) => {
         const [, forceUpdate] = useState({});
 
-        useLayoutEffect(() => {
+        useEffect(() => {
           const uiForceUpdater = () => {
             forceUpdate({});
           };
