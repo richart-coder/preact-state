@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import EventBus from "../utils/EventBus";
 const eventBus = new EventBus();
 
@@ -8,7 +8,7 @@ function useSignal(initialValue) {
 
   const useSignalEffect = () => {
     const [, setState] = useState(initialValue);
-    useLayoutEffect(() => {
+    useEffect(() => {
       eventBus.on(signalId, setState);
       return () => {
         eventBus.off(signalId, setState);
