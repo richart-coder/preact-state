@@ -1,23 +1,32 @@
-const eventBus = {
-  events: new Map(),
+class EventBus {
+  constructor() {
+    this.eventHandlers = new Map();
+  }
 
-  sub(event, callback) {
-    if (!this.events.has(event)) {
-      this.events.set(event, new Set());
+  on(eventType, targetHandler) {
+    if (!this.eventHandlers.has(eventType)) {
+      this.eventHandlers.set(eventType, new Set());
     }
-    this.events.get(event).add(callback);
+    this.eventHandlers.get(eventType)?.add(targetHandler);
+  }
 
-    return () => {
-      this.events.get(event)?.delete(callback);
-    };
-  },
-
-  pub(event, data) {
-    const callbacks = this.events.get(event);
-    if (callbacks) {
-      callbacks.forEach((callback) => callback(data));
+  emit(eventType, data) {
+    const handlers = this.eventHandlers.get(eventType);
+    if (handlers) {
+      handlers.forEach((handler) => handler(data));
     }
-  },
-};
+  }
 
-export default eventBus;
+  off(eventType, targetHandler) {
+    const handlers = this.eventHandlers.get(eventType);
+    if (handlers) {
+      handlers.delete(targetHandler);
+    }
+  }
+
+  getHandlers(eventType) {
+    return this.eventHandlers.get(eventType);
+  }
+}
+
+export default EventBus;
